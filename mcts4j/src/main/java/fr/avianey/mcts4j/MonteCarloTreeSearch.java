@@ -26,6 +26,37 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
     N root;
     
     /**
+     * Get the best {@link Transition} for the current player
+     * @return the best {@link Transition} for the current player or
+     *      null if the current player has no possible move.
+     */
+    public T getBestTransition() {
+        if (getPossibleTransitions().isEmpty()) {
+            return null;
+        }
+        final int currentPlayer = getCurrentPlayer();
+        Path<T, N> path = selection(currentPlayer);
+        if (path != null) {
+            // the tree has not been fully explored yet
+            path = expansion(path);
+            int winner = simulation();
+            backPropagation(path, winner);
+        }
+        // state is restored
+        assert currentPlayer == getCurrentPlayer();
+        T best = null;
+        double bestValue = Double.MIN_VALUE;
+        for (Map.Entry<T, ? extends Node<T>> e : root.getTransitionsAndNodes().entrySet()) {
+            double value = e.getValue().value(currentPlayer);
+            if (value > bestValue) {
+                bestValue = value;
+                best = e.getKey();
+            }
+        }
+        return best;
+    }
+    
+    /**
      * Select a non terminal leaf {@link Node} to expand expressed by a {@link Path} from
      * the root {@link Node} to the leaf {@link Node}. The selection is done by calling
      * {@link #selectNonTerminalChildOf(Node)} from child to child until we reach a leaf {@link Node}.
@@ -91,7 +122,8 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
     /**
      * Get possible transitions from the current position. Returned transitions MIGHT involves
      * any of the players, taking into account actions such as pass, skip, fold, ...
-     * @return possible transitions for the current position.
+     * @return possible transitions for the current position or an empty {@link Set}
+     *      if there's no possible transition.
      */
     public abstract Set<T> getPossibleTransitions();
     
@@ -105,6 +137,8 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
     public abstract boolean isOver();
     
     public abstract int getWinner();
+    
+    public abstract int getCurrentPlayer();
     
     /**
      * Change current turn to the next player.
@@ -127,9 +161,12 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
      * The leaf {@link Node} to expand MUST NOT be a terminal {@link Node}
      * @param path a {@link Path} to a non terminal leaf {@link Node}.
      * @return the {@link Path} to run the random simulation from.
-     *      The expanded {@link Node} CAN be a terminal {@link Node}
+     *      The expanded {@link Node} MIGHT be a terminal {@link Node}
      */
     private Path<T, N> expansion(final Path<T, N> path) {
+        if (path == null) {
+            throw new IllegalArgumentException("The " + Node.class.getSimpleName() + " to expand MUST NOT be null.");
+        }
         Set<T> possibleTransitions = getPossibleTransitions();
         if (!possibleTransitions.isEmpty()) {
             // choose a child to expand
@@ -143,13 +180,12 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
         } else {
             throw new IllegalStateException("Trying to expand a " + Node.class.getName() + " with no possible transitions. "
                     + "Only non terminal " + Node.class.getName() + " could be expanded... "
-                    + "Check the contract for " + MonteCarloTreeSearch.class.getName() + ".selectNonTerminalChildOf() ");
+                    + "Check the contract for " + MonteCarloTreeSearch.class.getName() + ".selectNonTerminalChildOf()");
         }
         return path;
     }
     
     
-    // TODO what if more than 2 players
     private int simulation() {
         LinkedList<T> transitions = new LinkedList<T>();
         while (!isOver()) {

@@ -33,6 +33,15 @@ public abstract class Node<T extends Transition> {
     
     abstract void result(int winner);
     
+    /**
+     * Get the value of the {@link Node} for the given player.
+     * The {@link Node} with the greater value will be picked
+     * as the best choice for this player.
+     * @param winner
+     * @return
+     */
+    abstract double value(int winner);
+    
     abstract Map<T, Node<T>> getTransitionsAndNodes();
     
     abstract Set<Node<T>> getChilds();
