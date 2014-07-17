@@ -19,14 +19,31 @@ import java.util.Set;
  * @param <T> a {@link Transition} representing an atomic action that modifies the state 
  * @param <N> a {@link Node} that stores simulations and wins
  * 
- * @author Tonio
+ * @author antoine vianey
  */
+// TODO describe pass, skip actions
 public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<T>> {
     
-    N root;
+	/**
+	 * This is where we are.
+	 * Each {@link Node} keeps a reference to its parent {@link Node} and to each child {@link Node}.
+	 */
+//    private N root;
+    private Path<T, N> pathToRoot;
+    
+    public MonteCarloTreeSearch() {
+    	reset();
+    }
+    
+    public void reset() {
+//    	root = newNode(null, false);
+    	pathToRoot = new Path<T, N>(newNode(null, false));
+    }
     
     /**
-     * Get the best {@link Transition} for the current player
+     * Get the best {@link Transition} for the current player.
+     * Playing a {@link Transition} MUST be done by calling {@link #makeTransitionAndChangeRoot(Transition)}
+     * unless next call to this method WILL rely on a wrong origin.
      * @return the best {@link Transition} for the current player or
      *      null if the current player has no possible move.
      */
@@ -35,18 +52,25 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
             return null;
         }
         final int currentPlayer = getCurrentPlayer();
-        Path<T, N> path = selection(currentPlayer);
-        if (path != null) {
-            // the tree has not been fully explored yet
-            path = expansion(path);
-            int winner = simulation();
-            backPropagation(path, winner);
-        }
+        Path<T, N> path;
+        boolean stop = true;
+        // TODO : do it in a interruptable Thread
+        do {
+	        path = selection(pathToRoot, currentPlayer);
+	        if (path != null) {
+	            // the tree has not been fully explored yet
+	            path = expansion(path);
+	            int winner = simulation();
+	            backPropagation(path, winner);
+	        }
+        } while (path != null && !stop);
         // state is restored
         assert currentPlayer == getCurrentPlayer();
         T best = null;
-        double bestValue = Double.MIN_VALUE;
-        for (Map.Entry<T, ? extends Node<T>> e : root.getTransitionsAndNodes().entrySet()) {
+        double bestValue = Double.NEGATIVE_INFINITY;
+        // all possible transitions are set on root node
+        // see expansion(Path<T, N> path)
+        for (Map.Entry<T, ? extends Node<T>> e : pathToRoot.endNode().getTransitionsAndNodes().entrySet()) {
             double value = e.getValue().value(currentPlayer);
             if (value > bestValue) {
                 bestValue = value;
@@ -57,15 +81,46 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
     }
     
     /**
+     * Truncate the tree, keeping only the current root {@link Node} and its sub-tree.
+     * Sub-trees that does not contains the current root {@link Node} are removes as well.
+     */
+    public void simplifyTree() {
+    	this.pathToRoot = new Path<T, N>(pathToRoot.endNode());
+    	this.pathToRoot.endNode().makeRoot();
+    }
+    
+    @SuppressWarnings("unchecked")
+	protected final void pushTransition(T transition) {
+    	if (transition != null) {
+    		/// TODO need a fix in equals somewhere
+    		pathToRoot.expand(transition, (N) pathToRoot.endNode().getNode(transition));
+    	}
+    }
+    
+    protected final void popTransition(T transition) {
+    	if (transition != null) {
+    		pathToRoot.getNodes().pollLast();
+    	}
+    }
+    
+    /*======*
+     * MCTS *
+     *======*/
+
+    /**
      * Select a non terminal leaf {@link Node} to expand expressed by a {@link Path} from
-     * the root {@link Node} to the leaf {@link Node}. The selection is done by calling
+     * the current root {@link Node} to the leaf {@link Node}. The selection is done by calling
      * {@link #selectNonTerminalChildOf(Node)} from child to child until we reach a leaf {@link Node}.
+     * @param root The {@link Path} to the current root {@link Node}
+     * @param player The player for which we are seeking an optimal {@link Transition}
      * @return the {@link Path} to the leaf {@link Node} to expand or null if
      *      there's nothing else to expand...
      */
+    // TODO : we can start from origine each time with no root param (use pathToRoot instead)
     @SuppressWarnings("unchecked")
-    private Path<T, N> selection(int player) {
-        N current = root;
+    private Path<T, N> selection(final Path<T, N> root, final int player) {
+        N current = root.endNode();
+        // TODO : initialize with root path instead ???
         Path<T, N> path = new Path<T, N>(current);
         Map.Entry<T, N> next;
         while (!current.isLeaf()) {
@@ -73,7 +128,7 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
             if (next == null) {
                 // nothing to explore
                 current.setTerminal(true);
-                if (current == root) {
+                if (current == root.endNode()) {
                     // stuck at root node
                     return null;
                 } else {
@@ -91,74 +146,9 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
     }
 
     /**
-     * Method used to select a the child of a {@link Node} and reach a leaf {@link Node} to expand.
-     * This method MUST NOT return a terminal {@link Node}.
-     * @param node a {@link Node} that has already been visited
-     * @param player the player for which we are seeking a promising child {@link Node}
-     * @return the next (non terminal) {@link Node} in the selection or null if there's no more child node to explore
-     * @see Node#isTerminal()
-     */
-    public abstract Map.Entry<T, N> selectNonTerminalChildOf(N node, int player);
-    
-    /**
-     * selectionTransition(empty list) == null
-     * selectionTransition(null) == null
-     * @param possibleTransitions
-     * @return
-     */
-    public abstract T simulationTransition(Set<T> possibleTransitions);
-    public abstract T expansionTransition(Set<T> possibleTransitions);
-    /**
-     * maketransition(null) == next()
-     * @param transition
-     */
-    public abstract void makeTransition(T transition);
-    /**
-     * unmaketransition(null) == previous()
-     * @param transition
-     */
-    public abstract void unmakeTransition(T transition);
-    
-    /**
-     * Get possible transitions from the current position. Returned transitions MIGHT involves
-     * any of the players, taking into account actions such as pass, skip, fold, ...
-     * @return possible transitions for the current position or an empty {@link Set}
-     *      if there's no possible transition.
-     */
-    public abstract Set<T> getPossibleTransitions();
-    
-    public abstract N newNode(boolean terminal);
-    
-    /**
-     * MUST return true if there's no possible {@link Transition} from the current position
-     * @return true if {@link #getPossibleTransitions()} returns an empty {@link Set}
-     */
-    // TODO : Iterator
-    public abstract boolean isOver();
-    
-    public abstract int getWinner();
-    
-    public abstract int getCurrentPlayer();
-    
-    /**
-     * Change current turn to the next player.
-     * This method must not be used in conjunction with the makeMove() method.
-     * Use it to implement a <strong>pass</strong> functionality.
-     * @see #makeMove(Move)
-     */
-    public abstract void next();
-    
-    /**
-     * Change current turn to the previous player.
-     * This method must not be used in conjunction with the unmakeMove() method.
-     * Use it to implement an <strong>undo</strong> functionality.
-     * @see #unmakeMove(Move)
-     */
-    public abstract void previous();
-    
-    /**
-     * Expand the leaf {@link Node} by creating a new child {@link Node} added to the tree.
-     * The leaf {@link Node} to expand MUST NOT be a terminal {@link Node}
+     * Expand the leaf {@link Node} by creating <strong>every</strong> child {@link Node}.<br/>
+     * The leaf {@link Node} to expand MUST NOT be a terminal {@link Node}.<br/>
+     * After expansion, the leaf {@link Node} has all of its children created.<br/>
      * @param path a {@link Path} to a non terminal leaf {@link Node}.
      * @return the {@link Path} to run the random simulation from.
      *      The expanded {@link Node} MIGHT be a terminal {@link Node}
@@ -169,13 +159,22 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
         }
         Set<T> possibleTransitions = getPossibleTransitions();
         if (!possibleTransitions.isEmpty()) {
-            // choose a child to expand
+            // choose the child to expand
             T transition = expansionTransition(possibleTransitions);
+        	// add every child node to the tree
+        	for (T possibleTransition : possibleTransitions) {
+                if (possibleTransition.equals(transition)) {
+                	continue;
+                }
+                makeTransition(possibleTransition);
+                N node = newNode(path.endNode(), isOver());
+                path.endNode().addChildNode(possibleTransition, node);
+                unmakeTransition(possibleTransition);
+        	}
+        	// expand the path with the choosen transition
             makeTransition(transition);
-            // create the node and expand the path
-            // set node to terminal if the game is over
-            // TODO : abstract class with single constructor
-            N node = newNode(isOver());
+            N node = newNode(path.endNode(), isOver());
+            path.endNode().addChildNode(transition, node);
             path.expand(transition, node);
         } else {
             throw new IllegalStateException("Trying to expand a " + Node.class.getName() + " with no possible transitions. "
@@ -185,7 +184,11 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
         return path;
     }
     
-    
+    /**
+     * Run a random simulation from the expanded position to get a winner.
+     * @return
+     * 		The winner of the random simulation
+     */
     private int simulation() {
         LinkedList<T> transitions = new LinkedList<T>();
         while (!isOver()) {
@@ -203,15 +206,129 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
         return winner;
     }
     
-    
-    
-    private void backPropagation(Path<T, N> path, int winner) {
+    /**
+     * Propagate the winner from the expanded {@link Node} up to the current root {@link Node}
+     * @param path The {@link Path} starting at the current root {@link Node} and leading to the expanded {@link Node}
+     * @param winner The winner of the simulation
+     */
+    private void backPropagation(final Path<T, N> path, final int winner) {
         Map.Entry<T, N> e;
         while((e = path.getNodes().pollLast()) != null) {
             unmakeTransition(e.getKey());
             e.getValue().result(winner);
         }
     }
+
+    /*==================*
+     * ABSTRACT METHODS *
+     *==================*/
     
+    /**
+     * Method used to select a child of a {@link Node} and reach a leaf {@link Node} to expand :
+     * <ul>
+     * <li>UCT : upper confident bound applied to trees</li>
+     * </ul>
+     * This method MUST NOT return a terminal {@link Node}.
+     * @param node a {@link Node} that has already been visited
+     * @param player the player for which we are seeking a promising child {@link Node}
+     * @return the next (non terminal) {@link Node} in the selection step 
+     * 		or null if there's no more child node to explore
+     * 		or null if there's only terminal child nodes
+     * @see Node#isTerminal()
+     */
+    public abstract Map.Entry<T, N> selectNonTerminalChildOf(N node, int player);
+    
+    /**
+     * Select the next {@link Transition} during the simulation step
+     * @param possibleTransitions
+     * 		The possible transitions from the current root {@link Node}
+     * @return
+     * 		The desired {@link Transition}
+     * 		or null if possibleTransitions is null or empty
+     */
+    public abstract T simulationTransition(Set<T> possibleTransitions);
+    
+    /**
+     * Choose the {@link Node} to be expanded and to run the simulation from
+     * @param possibleTransitions
+     * 		Possible {@link Transition} of the selected {@link Node}
+     * 		At least one possible {@link Transition}
+     * @return
+     * 		The desired {@link Transition} to get the expanded {@link Node} from
+     */
+    public abstract T expansionTransition(Set<T> possibleTransitions);
+    
+    /**
+     * MUST only be called with a {@link Transition} returned by {@link #getBestTransition()}.
+     * This method MUST call {@link #pushTransition(Transition)} in order to update the 
+     * current {@link Node} in the tree...
+     * maketransition(null) == next()
+     * @param transition
+     * 		A {@link Transition} returned by {@link #getBestTransition()} or null
+     */
+    public abstract void makeTransition(T transition);
+
+    /**
+     * MUST only be called with the last {@link Transition} passed to {@link #makeTransition(Transition)}.
+     * This method MUST call {@link #popTransition(Transition)} in order to update the current {@link Node} in the tree...
+     * @param transition
+     * 		A {@link Transition} returned by {@link #getBestTransition()} or null
+     */
+    public abstract void unmakeTransition(T transition);
+    
+    /**
+     * Get possible transitions from the current position. Returned transitions MIGHT involves
+     * any of the players, taking into account actions such as pass, skip, fold, etc...
+     * @return possible transitions for the current position or an empty {@link Set}
+     *      if there's no possible transition.
+     */
+    // TODO : return no transition <==> isOver()
+    public abstract Set<T> getPossibleTransitions();
+    
+    /**
+     * Create a new {@link Node}
+     * @param parent The parent of the created {@link Node}
+     * @param terminal True if the {@link Node} represents a configuration where {@link #isOver()} return true
+     * @return
+     * 		The new {@link Node}
+     * 		MUST be not null.
+     */
+    public abstract N newNode(Node<T> parent, boolean terminal);
+    
+    /**
+     * MUST return true if there's no possible {@link Transition} from the current position
+     * @return true if {@link #getPossibleTransitions()} returns an empty {@link Set}
+     */
+    public abstract boolean isOver();
+    
+    /**
+     * Return the index of the winner when {@link #isOver()} returns true
+     * @return
+     * 		the index of the winner
+     */
+    // TODO : handle draw (also in node and backpropagation)
+    public abstract int getWinner();
+    
+    /**
+     * Returns the index of the player for the current root {@link Node}
+     * @return
+     */
+    public abstract int getCurrentPlayer();
+    
+    /**
+     * Change current turn to the next player.
+     * This method must not be used in conjunction with the makeMove() method.
+     * Use it to implement a <strong>pass</strong> functionality.
+     * @see #makeTransition(Transition)
+     */
+    public abstract void next();
+    
+    /**
+     * Change current turn to the previous player.
+     * This method must not be used in conjunction with the unmakeMove() method.
+     * Use it to implement an <strong>undo</strong> functionality.
+     * @see #unmakeTransition(Transition)
+     */
+    public abstract void previous();
 
 }

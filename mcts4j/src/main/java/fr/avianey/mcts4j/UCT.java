@@ -13,6 +13,7 @@ public abstract class UCT<T extends Transition, N extends Node<T>> extends Monte
         Map.Entry<T, N> best = null;
         for (Map.Entry<T, ? extends Node<T>> e : node.getTransitionsAndNodes().entrySet()) {
             if (!e.getValue().isTerminal()) {
+            	// w/n + C * Math.sqrt(ln(n(p)) / n)
                 double value = (e.getValue().simulations() == 0 ? 0 : e.getValue().wins(player) / e.getValue().simulations())
                         + C * Math.sqrt(Math.log(node.simulations()) / e.getValue().simulations());
                 if (value > v) {

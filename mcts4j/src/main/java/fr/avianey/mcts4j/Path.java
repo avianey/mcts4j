@@ -10,12 +10,16 @@ public class Path<T extends Transition, N extends Node<T>> {
     private final LinkedList<Map.Entry<T, N>> nodes;
 
     public Path(N root) {
+    	if (root == null) {
+    		throw new IllegalArgumentException(
+    				"Root " + Node.class.getName() + " of a " + Path.class.getName() + " MUST NOT be null");
+    	}
         this.root = root;
         this.nodes = new LinkedList<Map.Entry<T, N>>();
     }
     
     public void expand(T transition, N node) {
-        nodes.add(new AbstractMap.SimpleEntry(transition, node));
+        nodes.addLast(new AbstractMap.SimpleEntry<T, N>(transition, node));
     }
 
     public LinkedList<Map.Entry<T, N>> getNodes() {
@@ -26,4 +30,21 @@ public class Path<T extends Transition, N extends Node<T>> {
         return nodes.isEmpty();
     }
     
+    public N endNode() {
+    	if (nodes.isEmpty()) {
+    		// TODO : or null
+    		return root;
+    	} else {
+    		return nodes.getLast().getValue();
+    	}
+    }
+
+    public String toString() {
+    	StringBuilder sb = new StringBuilder();
+    	for (Map.Entry<T, N> e : getNodes()) {
+    		sb.append(" -> ");
+    		sb.append(e.getKey());
+    	}
+    	return sb.toString();
+    }
 }
