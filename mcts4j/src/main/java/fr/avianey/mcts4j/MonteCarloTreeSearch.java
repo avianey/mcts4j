@@ -14,7 +14,10 @@ import java.util.Set;
  * <li>back propagation</li>
  * </ol>
  * The is a stateful implementation of the algorithm meaning that each of the four above steps modify
- * the state of the game and take care of restoring it before returning...
+ * the state of the game and take care of restoring it before returning... To use the algorithm, just
+ * implement all of the abstract methods of this class (and respect the contract of each one). Then,
+ * get the best choice for the current player with {@link #getBestTransition()} and do it by calling
+ * {@link #doTransition(Transition)}. {@link #undoTransition(Transition)} allow you to rollback a choice.
  * 
  * @param <T> a {@link Transition} representing an atomic action that modifies the state 
  * @param <N> a {@link Node} that stores simulations and wins
@@ -28,7 +31,6 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
 	 * This is where we are.
 	 * Each {@link Node} keeps a reference to its parent {@link Node} and to each child {@link Node}.
 	 */
-//    private N root;
     private Path<T, N> pathToRoot;
     
     public MonteCarloTreeSearch() {
@@ -53,8 +55,8 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
         }
         final int currentPlayer = getCurrentPlayer();
         Path<T, N> path;
-        boolean stop = true;
-        // TODO : do it in a interruptable Thread
+        boolean stop = false;
+        // TODO : do it in a interuptable Thread
         do {
 	        path = selection(pathToRoot, currentPlayer);
 	        if (path != null) {
@@ -89,16 +91,34 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
     	this.pathToRoot.endNode().makeRoot();
     }
     
+    /**
+     * Update the context and change the root of the tree to this context so that it reflects the
+     * realization of the given {@link Transition}. This method is the same as {@link #makeTransition(Transition)}
+     * but it also change the root of the tree to the {@link Node} reached by the given {@link Transition}.
+     * MUST only be called with a {@link Transition} returned by {@link #getBestTransition()}.
+     * @param transition
+     * @see #makeTransition(Transition)
+     */
     @SuppressWarnings("unchecked")
-	protected final void pushTransition(T transition) {
+	public final void doTransition(T transition) {
     	if (transition != null) {
-    		/// TODO need a fix in equals somewhere
+    		makeTransition(transition);
     		pathToRoot.expand(transition, (N) pathToRoot.endNode().getNode(transition));
     	}
     }
     
-    protected final void popTransition(T transition) {
+    /**
+     * Update the context and change the root of the tree to this context so that it reflects the rollback of the
+     * realization of the given {@link Transition}. This method is the same as {@link #unmakeTransition(Transition)}
+     * but it also change the root of the tree to the origin {@link Node} of the given {@link Transition} in the tree.
+     * MUST only be called with the last {@link Transition} passed to {@link #makeTransition(Transition)}.
+     * @param transition
+     * @see #unmakeTransition(Transition)
+     */
+    // TODO : handle errors when undoing transition after simplifyTree()
+    public final void undoTransition(T transition) {
     	if (transition != null) {
+    		unmakeTransition(transition);
     		pathToRoot.getNodes().pollLast();
     	}
     }
@@ -116,7 +136,7 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
      * @return the {@link Path} to the leaf {@link Node} to expand or null if
      *      there's nothing else to expand...
      */
-    // TODO : we can start from origine each time with no root param (use pathToRoot instead)
+    // TODO : we can start from origin each time with no root param (use pathToRoot instead)
     @SuppressWarnings("unchecked")
     private Path<T, N> selection(final Path<T, N> root, final int player) {
         N current = root.endNode();
@@ -171,7 +191,7 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
                 path.endNode().addChildNode(possibleTransition, node);
                 unmakeTransition(possibleTransition);
         	}
-        	// expand the path with the choosen transition
+        	// expand the path with the chosen transition
             makeTransition(transition);
             N node = newNode(path.endNode(), isOver());
             path.endNode().addChildNode(transition, node);
@@ -214,9 +234,12 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
     private void backPropagation(final Path<T, N> path, final int winner) {
         Map.Entry<T, N> e;
         while((e = path.getNodes().pollLast()) != null) {
+        	// every Node of the Path except the root
             unmakeTransition(e.getKey());
             e.getValue().result(winner);
         }
+        // the root node
+        path.rootNode().result(winner);
     }
 
     /*==================*
@@ -259,22 +282,23 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
     public abstract T expansionTransition(Set<T> possibleTransitions);
     
     /**
+     * Update the context so it takes into account the realization of the given {@link Transition}.
      * MUST only be called with a {@link Transition} returned by {@link #getBestTransition()}.
-     * This method MUST call {@link #pushTransition(Transition)} in order to update the 
-     * current {@link Node} in the tree...
-     * maketransition(null) == next()
      * @param transition
      * 		A {@link Transition} returned by {@link #getBestTransition()} or null
+     * @see #doTransition(Transition)
      */
-    public abstract void makeTransition(T transition);
+    protected abstract void makeTransition(T transition);
 
     /**
+     * Update the context so it takes into account the rollback of the given {@link Transition}.
      * MUST only be called with the last {@link Transition} passed to {@link #makeTransition(Transition)}.
-     * This method MUST call {@link #popTransition(Transition)} in order to update the current {@link Node} in the tree...
      * @param transition
      * 		A {@link Transition} returned by {@link #getBestTransition()} or null
+     * @see #undoTransition(Transition)
      */
-    public abstract void unmakeTransition(T transition);
+    // TODO : handle errors when undoing transition after simplifyTree()
+    protected abstract void unmakeTransition(T transition);
     
     /**
      * Get possible transitions from the current position. Returned transitions MIGHT involves
@@ -282,7 +306,7 @@ public abstract class MonteCarloTreeSearch<T extends Transition, N extends Node<
      * @return possible transitions for the current position or an empty {@link Set}
      *      if there's no possible transition.
      */
-    // TODO : return no transition <==> isOver()
+    // TODO : return no transition <==> isOver() transitions when pass
     public abstract Set<T> getPossibleTransitions();
     
     /**

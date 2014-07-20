@@ -59,7 +59,7 @@ public abstract class SampleRunner<T extends Transition> {
             Set<T> transitions = mcts.getPossibleTransitions();
             if (!transitions.isEmpty()) {
                 transition = mcts.getBestTransition();
-                mcts.makeTransition(transition);
+                mcts.doTransition(transition);
                 if (listener != null) {
                     listener.onMove(mcts, transition, ++turn);
                 }

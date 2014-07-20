@@ -91,8 +91,6 @@ public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeT
 
     @Override
     public void makeTransition(TicTacToeTransition transition) {
-    	// required !!!
-    	super.pushTransition(transition);
         grid[transition.getX()][transition.getY()] = currentPlayer;
         turn++;
         next();
@@ -100,8 +98,6 @@ public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeT
 
     @Override
     public void unmakeTransition(TicTacToeTransition transition) {
-    	// required !!!
-    	super.popTransition(transition);
         grid[transition.getX()][transition.getY()] = FREE;
         turn--;
         previous();

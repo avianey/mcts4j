@@ -18,6 +18,12 @@ public class Path<T extends Transition, N extends Node<T>> {
         this.nodes = new LinkedList<Map.Entry<T, N>>();
     }
     
+    /**
+     * Expand the {@link Path} with the given {@link Transition} and {@link Node}.
+     * This method does not add the given {@link Node} as child of the {@link Path#endNode()}
+     * @param transition
+     * @param node
+     */
     public void expand(T transition, N node) {
         nodes.addLast(new AbstractMap.SimpleEntry<T, N>(transition, node));
     }
@@ -29,7 +35,7 @@ public class Path<T extends Transition, N extends Node<T>> {
     public boolean isEmpty() {
         return nodes.isEmpty();
     }
-    
+
     public N endNode() {
     	if (nodes.isEmpty()) {
     		// TODO : or null
@@ -37,6 +43,10 @@ public class Path<T extends Transition, N extends Node<T>> {
     	} else {
     		return nodes.getLast().getValue();
     	}
+    }
+
+    public N rootNode() {
+    	return root;
     }
 
     public String toString() {
