@@ -1,50 +1,48 @@
+/*
+ * This file is part of mcts4j.
+ * <https://github.com/avianey/mcts4j>
+ *
+ * Copyright (C) 2019 Antoine Vianey
+ *
+ * mcts4j is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * mcts4j is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with mcts4j. If not, see <http://www.gnu.org/licenses/lgpl.html>
+ */
 package fr.avianey.mcts4j.sample.tictactoe;
+
+import fr.avianey.mcts4j.UCT;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import fr.avianey.mcts4j.DefaultNode;
-import fr.avianey.mcts4j.Node;
-import fr.avianey.mcts4j.UCT;
-
-/*
- * This file is part of mcts4j.
- * <https://github.com/avianey/mcts4j>
- *  
- * Copyright (C) 2012 Antoine Vianey
- * 
- * minimax4j is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3 of the License, or (at your option) any later version.
- *
- * minimax4j is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with minimax4j. If not, see <http://www.gnu.org/licenses/lgpl.html>
- */
 
 /**
- * Simple TicTacToe IA to showcase the API. 
- * 
+ * Simple TicTacToe IA to showcase the API.
+ *
  * @author antoine vianey
  */
-public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeTransition>> {
+public class TicTacToeIA extends UCT<TicTacToeTransition> {
 
     static final int FREE       = 0;
     static final int PLAYER_X   = 1; // X
     static final int PLAYER_O   = 2; // O
-    
+
     private static final int GRID_SIZE  = 3;
-    
+
     /** The grid */
     private final int[][] grid;
-    
+
     private int currentPlayer;
     private int turn = 0;
 
@@ -53,7 +51,7 @@ public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeT
         this.grid = new int[GRID_SIZE][GRID_SIZE];
         newGame();
     }
-    
+
     public void newGame() {
         for (int i = 0; i < GRID_SIZE; i++) {
             for (int j = 0; j < GRID_SIZE; j++) {
@@ -69,9 +67,9 @@ public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeT
     public boolean isOver() {
         return hasWon(PLAYER_O) || hasWon(PLAYER_X) || turn == 9;
     }
-    
+
     private boolean hasWon(int player) {
-        return 
+        return
             (player == grid[0][1] && player == grid[0][2] && player == grid[0][0])
             ||
             (player == grid[1][1] && player == grid[1][2] && player == grid[1][0])
@@ -91,6 +89,9 @@ public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeT
 
     @Override
     public void makeTransition(TicTacToeTransition transition) {
+        if (grid[transition.getX()][transition.getY()] != FREE) {
+            throw new RuntimeException();
+        }
         grid[transition.getX()][transition.getY()] = currentPlayer;
         turn++;
         next();
@@ -98,6 +99,9 @@ public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeT
 
     @Override
     public void unmakeTransition(TicTacToeTransition transition) {
+        if (grid[transition.getX()][transition.getY()] == FREE) {
+            throw new RuntimeException();
+        }
         grid[transition.getX()][transition.getY()] = FREE;
         turn--;
         previous();
@@ -105,7 +109,7 @@ public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeT
 
     @Override
     public Set<TicTacToeTransition> getPossibleTransitions() {
-    	Set<TicTacToeTransition> moves = new HashSet<TicTacToeTransition>();
+    	Set<TicTacToeTransition> moves = new HashSet<>();
         for (int i = 0; i < GRID_SIZE; i++) {
             for (int j = 0; j < GRID_SIZE; j++) {
                 if (grid[i][j] == FREE) {
@@ -113,21 +117,17 @@ public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeT
                 }
             }
         }
-        // moves can be sorted to optimize alpha-beta pruning
-        // {1,1} is always the best move when available
         return moves;
     }
 
-    @Override
-    public void next() {
+    private void next() {
         currentPlayer = 3 - currentPlayer;
     }
 
-    @Override
-    public void previous() {
-        currentPlayer = 3 - currentPlayer;
+    private void previous() {
+        next();
     }
-    
+
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(grid[0][0] == FREE ? " " : (grid[0][0] == PLAYER_O ? "O" : "X"));
@@ -146,14 +146,17 @@ public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeT
     }
 
 	@Override
-	public TicTacToeTransition simulationTransition(Set<TicTacToeTransition> possibleTransitions) {
-		List<TicTacToeTransition> transitions = new ArrayList<TicTacToeTransition>(possibleTransitions);
-		return transitions.get((int) Math.floor(Math.random() * possibleTransitions.size()));
+	public TicTacToeTransition simulationTransition() {
+        return expansionTransition();
 	}
 
 	@Override
-	public TicTacToeTransition expansionTransition(Set<TicTacToeTransition> possibleTransitions) {
-		List<TicTacToeTransition> transitions = new ArrayList<TicTacToeTransition>(possibleTransitions);
+	public TicTacToeTransition expansionTransition() {
+        Set<TicTacToeTransition> possibleTransitions = getPossibleTransitions();
+        if (possibleTransitions.isEmpty()) {
+            return null;
+        }
+		List<TicTacToeTransition> transitions = new ArrayList<>(possibleTransitions);
 		return transitions.get((int) Math.floor(Math.random() * possibleTransitions.size()));
 	}
 
@@ -170,11 +173,6 @@ public class TicTacToeIA extends UCT<TicTacToeTransition, DefaultNode<TicTacToeT
 	@Override
 	public int getCurrentPlayer() {
 		return currentPlayer;
-	}
-
-	@Override
-	public DefaultNode<TicTacToeTransition> newNode(Node<TicTacToeTransition> parent, boolean terminal) {
-		return new DefaultNode<TicTacToeTransition>(parent, terminal);
 	}
 
 }

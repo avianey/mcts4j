@@ -8,7 +8,7 @@
 	<version>1.0.0-SNAPSHOT</version>
 	<description>
 	    mcts4j is a pure java implementation of the monte carlo tree search algorithm.
-	    Monte-Carlo tree search is a heuristic search algorithm of making decisions in some decision processes, 
+	    Monte-Carlo tree search is a heuristic search algorithm of making decisions in some decision processes,
 		most notably employed in game playing
 	</description>
 	<contributors>
@@ -20,13 +20,13 @@
 	        <url>http://avianey.github.com</url>
 	    </contributor>
 	</contributors>
-    
+
     <parent>
         <groupId>org.sonatype.oss</groupId>
         <artifactId>oss-parent</artifactId>
         <version>7</version>
     </parent>
-	
+
 	<licenses>
 	    <license>
 	        <name>GNU Lesser General Public License version 3</name>
@@ -34,14 +34,14 @@
 		    <distribution>repo</distribution>
         </license>
 	</licenses>
-    
+
     <scm>
         <url>https://github.com/avianey/mcts4j</url>
         <developerConnection>scm:git:git@github.com/avianey/mcts4j.git</developerConnection>
         <connection>scm:git:git://github.com/avianey/mcts4j.git</connection>
         <tag>HEAD</tag>
     </scm>
-    
+
     <dependencies>
         <dependency>
             <groupId>com.google.guava</groupId>
@@ -66,7 +66,7 @@
                 </plugin>
             </plugins>
         </pluginManagement>
-        
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -101,10 +101,9 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.1</version>
                 <configuration>
-                    <source>1.7</source>
-                    <target>1.7</target>
+                    <source>1.8</source>
+                    <target>1.8</target>
                 </configuration>
             </plugin>
             <plugin>
@@ -116,8 +115,8 @@
             </plugin>
         </plugins>
     </build>
-    
-    <!-- 
+
+    <!--
     mvn clean release:clean -s settings.xml
     mvn release:prepare -s settings.xml
     manual push
@@ -158,5 +157,5 @@
             </distributionManagement>
         </profile>
     </profiles>
-	
+
 </project>
